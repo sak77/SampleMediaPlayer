@@ -1,21 +1,37 @@
 package com.saket.samplemediaplayer
 
 import android.os.Bundle
-import android.widget.ImageView
+import android.widget.Toast
+import androidx.recyclerview.widget.RecyclerView
+import com.saket.samplemediaplayer.databinding.ActivityMainBinding
 
 /*
 
  */
 class MainActivity : BaseMediaBrowserClientActivity() {
 
-    private lateinit var playPause : ImageView
-    private val mediaBrowserClientWrapper : MediaBrowserClientWrapper by lazy {
-            MediaBrowserClientWrapper(this@MainActivity)
+    private val mediaBrowserClientWrapper: MediaBrowserClientWrapper by lazy {
+        MediaBrowserClientWrapper(this@MainActivity)
+    }
+
+    private val binding: ActivityMainBinding by lazy {
+        ActivityMainBinding.inflate(layoutInflater)
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        setContentView(R.layout.activity_main)
+        setContentView(binding.root)
+        val playListAdapter = PlayListAdapter { mediaItemClicked ->
+            //Toast.makeText(this,mediaItemClicked.description.title,Toast.LENGTH_LONG).show()
+            if (mediaItemClicked.isPlayable) {
+                mediaBrowserClientWrapper.togglePlayPause()
+            }
+        }
+
+        binding.playList.adapter = playListAdapter
+        mediaBrowserClientWrapper.livePlayListData.observe(this) { mediaItems ->
+            playListAdapter.submitList(mediaItems)
+        }
     }
 
     override fun onStart() {
@@ -44,13 +60,15 @@ class MainActivity : BaseMediaBrowserClientActivity() {
 
     override fun buildTransportControls() {
         // Grab the view for the play/pause button
-        playPause = findViewById<ImageView>(R.id.play_pause).apply {
+        /*
+        findViewById<ImageView>(R.id.play_pause).apply {
             setOnClickListener {
                 // Since this is a play/pause button, you'll need to test the current state
                 // and choose the action accordingly
                 mediaBrowserClientWrapper.togglePlayPause()
             }
         }
+         */
 
         // Register a Callback to stay in sync
         mediaBrowserClientWrapper.registerMediaControllerCallback()

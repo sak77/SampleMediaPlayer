@@ -5,6 +5,7 @@ import android.support.v4.media.MediaBrowserCompat
 import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaControllerCompat
 import android.support.v4.media.session.PlaybackStateCompat
+import androidx.lifecycle.MutableLiveData
 
 /*
 The purpose of this class is to separate the mediaBrowser client code from that
@@ -15,6 +16,8 @@ separate it out here...
  */
 class MediaBrowserClientWrapper(val activity: BaseMediaBrowserClientActivity) {
     private lateinit var mediaBrowser: MediaBrowserCompat
+
+    val livePlayListData = MutableLiveData<MutableList<MediaBrowserCompat.MediaItem>>()
 
     private val connectionCallbacks = object : MediaBrowserCompat.ConnectionCallback() {
 
@@ -64,15 +67,16 @@ class MediaBrowserClientWrapper(val activity: BaseMediaBrowserClientActivity) {
         ) {
             super.onChildrenLoaded(parentId, children)
             println(parentId)
+            livePlayListData.value = children
+            /*
             children.apply {
                 if (count() > 0) {
                     //Populate list with mediaitems
                     val firstMediaItem = get(0)
                     println(firstMediaItem.mediaId)
-                } else {
-                    println("Empty list")
                 }
             }
+             */
         }
 
         override fun onError(parentId: String) {
@@ -127,9 +131,14 @@ class MediaBrowserClientWrapper(val activity: BaseMediaBrowserClientActivity) {
 
     private var controllerCallback = object : MediaControllerCompat.Callback() {
 
-        override fun onMetadataChanged(metadata: MediaMetadataCompat?) {}
+        override fun onMetadataChanged(metadata: MediaMetadataCompat?) {
+            println(metadata?.description?.title)
+        }
 
-        override fun onPlaybackStateChanged(state: PlaybackStateCompat?) {}
+        override fun onPlaybackStateChanged(state: PlaybackStateCompat?) {
+            println(state?.playbackState)
+
+        }
     }
 
 }

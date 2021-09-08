@@ -9,6 +9,7 @@ import android.support.v4.media.MediaDescriptionCompat
 import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaSessionCompat
 import android.support.v4.media.session.PlaybackStateCompat
+import android.util.Log
 import androidx.media.MediaBrowserServiceCompat
 
 class SampleMusicService : MediaBrowserServiceCompat() {
@@ -119,16 +120,21 @@ class SampleMusicService : MediaBrowserServiceCompat() {
 
     class MySessionCallback : MediaSessionCompat.Callback() {
 
+        val LOGTAG = "MySessionCallback"
+
         override fun onPlay() {
             super.onPlay()
+            Log.i(LOGTAG, "onPlay() called")
         }
 
         override fun onPause() {
             super.onPause()
+            Log.i(LOGTAG, "onPause() called")
         }
 
         override fun onStop() {
             super.onStop()
+            Log.i(LOGTAG, "onStop() called")
         }
     }
 }
