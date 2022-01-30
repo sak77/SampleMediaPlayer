@@ -1,27 +1,50 @@
 package com.saket.samplemediaplayer
 
-import android.support.v4.media.MediaBrowserCompat
+import android.media.session.PlaybackState
 import android.view.LayoutInflater
 import android.view.View
 import android.view.ViewGroup
+import android.widget.ImageView
 import android.widget.TextView
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.ListAdapter
 import androidx.recyclerview.widget.RecyclerView
-import com.saket.samplemediaplayer.databinding.LayoutMediaitemBinding
-import java.util.function.Consumer
 
-class PlayListAdapter (val clickListener : Consumer<MediaBrowserCompat.MediaItem>) :
-    ListAdapter<MediaBrowserCompat.MediaItem, PlayListAdapter.MediaItemViewHolder>(MediaItemDiffCallback()) {
+class PlayListAdapter (private val clickListener : (MyMediaItem, Int) -> Unit) :
+    ListAdapter<MyMediaItem, PlayListAdapter.MediaItemViewHolder>(MediaItemDiffCallback()) {
 
-    class MediaItemViewHolder(view: View)
+    //List item layout height/width are set to wrap_content when using databinding....
+    class MediaItemViewHolder(val view: View)
         : RecyclerView.ViewHolder(view) {
-        private var title : TextView = view.findViewById(R.id.txtTitle)
+        private val title : TextView = view.findViewById(R.id.txtTitle)
+        private val playbackIcon : ImageView = view.findViewById(R.id.playPause)
+        private val stopIcon : ImageView = view.findViewById(R.id.stop)
 
-        fun bind(mediaItem: MediaBrowserCompat.MediaItem, clickListener: Consumer<MediaBrowserCompat.MediaItem>) {
-            title.text = mediaItem.description.title
-            title.setOnClickListener {
-                clickListener.accept(mediaItem)
+        fun bind(mediaItem: MyMediaItem, clickListener: (MyMediaItem, Int) -> Unit) {
+            title.text = mediaItem.mediaItem.description.title
+            mediaItem.playBackState?.let {
+                when (it.state) {
+                    PlaybackState.STATE_PLAYING -> {
+                        playbackIcon.setImageResource(R.drawable.ic_pause)
+                        stopIcon.visibility = View.VISIBLE
+                    }
+                    PlaybackState.STATE_PAUSED -> {
+                        playbackIcon.setImageResource(R.drawable.ic_play_arrow)
+                        stopIcon.visibility = View.VISIBLE
+                    }
+                    else -> {
+                        playbackIcon.setImageResource(R.drawable.ic_play_arrow)
+                        stopIcon.visibility = View.INVISIBLE
+                    }
+                }
+            }
+            playbackIcon.setOnClickListener {
+                //0 is for play/pause media
+                clickListener(mediaItem, 0)
+            }
+            stopIcon.setOnClickListener {
+                //1 is to stop media
+                clickListener(mediaItem, 1)
             }
         }
 
@@ -35,41 +58,22 @@ class PlayListAdapter (val clickListener : Consumer<MediaBrowserCompat.MediaItem
 
     }
 
-    //List item layout height/width are set to wrap_content when using databinding....
-    /*
-    class MediaItemViewHolder(private val layoutMediaitemBinding: LayoutMediaitemBinding)
-        : RecyclerView.ViewHolder(layoutMediaitemBinding.root) {
-
-        fun bind(mediaItem: MediaBrowserCompat.MediaItem) {
-            layoutMediaitemBinding.mediaItem = mediaItem
-        }
-
-        companion object {
-            fun from(parent: ViewGroup) : MediaItemViewHolder {
-                val inflater = LayoutInflater.from(parent.context)
-                val binding = LayoutMediaitemBinding.inflate(inflater)
-                return MediaItemViewHolder(binding)
-            }
-        }
-    }
-*/
-
-
-    class MediaItemDiffCallback : DiffUtil.ItemCallback<MediaBrowserCompat.MediaItem>() {
+    class MediaItemDiffCallback : DiffUtil.ItemCallback<MyMediaItem>() {
         override fun areItemsTheSame(
-            oldItem: MediaBrowserCompat.MediaItem,
-            newItem: MediaBrowserCompat.MediaItem
+            oldItem: MyMediaItem,
+            newItem: MyMediaItem
         ): Boolean {
-            return oldItem.mediaId.equals(newItem.mediaId)
+            return oldItem.mediaItem.mediaId.equals(newItem.mediaItem.mediaId)
         }
 
         override fun areContentsTheSame(
-            oldItem: MediaBrowserCompat.MediaItem,
-            newItem: MediaBrowserCompat.MediaItem
+            oldItem: MyMediaItem,
+            newItem: MyMediaItem
         ): Boolean {
-            return oldItem.description.title == newItem.description.title
+            //Tried to compare playbackstate but did not work..
+            //so for now return false..
+            return false
         }
-
     }
 
     override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): MediaItemViewHolder {

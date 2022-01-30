@@ -5,19 +5,46 @@ import android.support.v4.media.MediaBrowserCompat
 import android.support.v4.media.MediaMetadataCompat
 import android.support.v4.media.session.MediaControllerCompat
 import android.support.v4.media.session.PlaybackStateCompat
+import androidx.lifecycle.LiveData
 import androidx.lifecycle.MutableLiveData
 
 /*
-The purpose of this class is to separate the mediaBrowser client code from that
+This class separates the MediaBrowser client code from that
 of the MediaBrowserClient Activity.
 
-All this code was originally in the MainActivity, but i felt it will be good to
-separate it out here...
+It includes:
+MediaBrowser connection callback to listen and act on different connection states.
+MediaBrowser subscription callback to load children data from mediabrowser service.
+MediaController callbacks to listen for changes in mediasession.
  */
 class MediaBrowserClientWrapper(val activity: BaseMediaBrowserClientActivity) {
     private lateinit var mediaBrowser: MediaBrowserCompat
 
-    val livePlayListData = MutableLiveData<MutableList<MediaBrowserCompat.MediaItem>>()
+    /*
+    Using backing property for MutableLiveData prevents some
+    external class from inadvertently changing value
+    of this live data.
+     */
+    private val _livePlayList = MutableLiveData<MutableList<MyMediaItem>>()
+    val livePlayListData: LiveData<MutableList<MyMediaItem>>
+    get() = _livePlayList
+
+    private val _isConnected = MutableLiveData<Boolean>()
+    val isConnected: LiveData<Boolean>
+    get() = _isConnected
+
+    private val _playbackState = MutableLiveData<PlaybackStateCompat>()
+    val playbackState: LiveData<PlaybackStateCompat>
+    get() = _playbackState
+
+    val NOTHING_PLAYING: MediaMetadataCompat = MediaMetadataCompat.Builder()
+        .putString(MediaMetadataCompat.METADATA_KEY_MEDIA_ID, "")
+        .putLong(MediaMetadataCompat.METADATA_KEY_DURATION, 0)
+        .build()
+
+    val EMPTY_PLAYBACK_STATE: PlaybackStateCompat = PlaybackStateCompat.Builder()
+        .setState(PlaybackStateCompat.STATE_NONE, 0, 0f)
+        .build()
 
     private val connectionCallbacks = object : MediaBrowserCompat.ConnectionCallback() {
 
@@ -25,15 +52,16 @@ class MediaBrowserClientWrapper(val activity: BaseMediaBrowserClientActivity) {
             super.onConnected()
             // Get the token for the MediaSession
             mediaBrowser.sessionToken.also { token ->
-
-                // Create a MediaControllerCompat
-                val mediaController = MediaControllerCompat(
-                    activity, // Context
-                    token
-                )
-
-                // Save the controller
-                MediaControllerCompat.setMediaController(activity, mediaController)
+            // Create a MediaControllerCompat
+            val mediaController = MediaControllerCompat(
+                activity, // Context
+                token
+            )
+            /*
+            Sets a MediaControllerCompat in the activity for later retrieval via
+            getMediaController(Activity).
+             */
+            MediaControllerCompat.setMediaController(activity, mediaController)
             }
 
             // Finish building the UI
@@ -44,18 +72,21 @@ class MediaBrowserClientWrapper(val activity: BaseMediaBrowserClientActivity) {
 
             //Load children..
             mediaBrowser.subscribe(root, subscriptionCallbacks)
+            _isConnected.postValue(true)
         }
 
         override fun onConnectionSuspended() {
             super.onConnectionSuspended()
             // The Service has crashed. Disable transport controls until it automatically reconnects
             println("onConnectionSuspended")
+            _isConnected.postValue(false)
         }
 
         override fun onConnectionFailed() {
             super.onConnectionFailed()
             // The Service has refused our connection
             println("onConnectionFailed")
+            _isConnected.postValue(false)
         }
     }
 
@@ -66,17 +97,11 @@ class MediaBrowserClientWrapper(val activity: BaseMediaBrowserClientActivity) {
             children: MutableList<MediaBrowserCompat.MediaItem>
         ) {
             super.onChildrenLoaded(parentId, children)
-            println(parentId)
-            livePlayListData.value = children
-            /*
-            children.apply {
-                if (count() > 0) {
-                    //Populate list with mediaitems
-                    val firstMediaItem = get(0)
-                    println(firstMediaItem.mediaId)
-                }
-            }
-             */
+            val mediaList = children
+                .map {
+                    MyMediaItem(it, null)
+                }.toMutableList()
+            _livePlayList.postValue(mediaList)
         }
 
         override fun onError(parentId: String) {
@@ -92,7 +117,7 @@ class MediaBrowserClientWrapper(val activity: BaseMediaBrowserClientActivity) {
          */
         mediaBrowser = MediaBrowserCompat(
             activity,
-            ComponentName(activity, SampleMusicService::class.java),
+            ComponentName(activity, MyMediaBrowserService::class.java),
             connectionCallbacks, null
         )
     }
@@ -108,18 +133,6 @@ class MediaBrowserClientWrapper(val activity: BaseMediaBrowserClientActivity) {
         mediaBrowser.disconnect()
     }
 
-    fun togglePlayPause() {
-        val mediaController = MediaControllerCompat.getMediaController(activity)
-
-        val pbState = mediaController.playbackState.state
-        if (pbState == PlaybackStateCompat.STATE_PLAYING) {
-            mediaController.transportControls.pause()
-        } else {
-            mediaController.transportControls.play()
-        }
-
-    }
-
     fun registerMediaControllerCallback() {
         val mediaController = MediaControllerCompat.getMediaController(activity)
         // Display the initial state
@@ -132,13 +145,30 @@ class MediaBrowserClientWrapper(val activity: BaseMediaBrowserClientActivity) {
     private var controllerCallback = object : MediaControllerCompat.Callback() {
 
         override fun onMetadataChanged(metadata: MediaMetadataCompat?) {
-            println(metadata?.description?.title)
+            /*
+            calling mediaSession?.setMetadata(metadata) in MyMediaBrowserService
+            calls this method. And magically also sets metadata for
+            mediaController instance. So need to do any additional work...
+             */
         }
 
         override fun onPlaybackStateChanged(state: PlaybackStateCompat?) {
-            println(state?.playbackState)
-
+            _playbackState.postValue(state ?: EMPTY_PLAYBACK_STATE)
         }
     }
 
+    fun togglePlayPause() {
+        val mediaController = MediaControllerCompat.getMediaController(activity)
+        val pbState = mediaController.playbackState.state
+        if (pbState == PlaybackStateCompat.STATE_PLAYING) {
+            mediaController.transportControls.pause()
+        } else {
+            mediaController.transportControls.play()
+        }
+    }
+
+    fun stopPlayback() {
+        val mediaController = MediaControllerCompat.getMediaController(activity)
+        mediaController.transportControls.stop()
+    }
 }

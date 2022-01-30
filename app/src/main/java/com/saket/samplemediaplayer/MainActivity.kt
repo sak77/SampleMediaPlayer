@@ -1,12 +1,18 @@
 package com.saket.samplemediaplayer
 
 import android.os.Bundle
-import android.widget.Toast
-import androidx.recyclerview.widget.RecyclerView
 import com.saket.samplemediaplayer.databinding.ActivityMainBinding
 
-/*
-
+/**
+ * A simple app that explores the media app architecture for audio apps:
+ * MediaBrowserService: MediaSession + MediaItems + MediaPlayer interface
+ * MediaBrowser: MediaBrowser + MediaController
+ * It has a single media item which is displayed in the app.
+ * MyMediaBrowserService implements MediaBrowserService:
+ * Holds MediaSession instance, provides callbacks for getRoot and onChildLoaded
+ * MediaSession instance holds playbackstate info, MediaMetadata, session token.
+ * MediaSession callback listens to onPlay, onPause, onStop commands from MediaController.
+ * MediaBrowserClientWrapper class holds MediaController which ties the UI to the MediaSesion.
  */
 class MainActivity : BaseMediaBrowserClientActivity() {
 
@@ -21,10 +27,16 @@ class MainActivity : BaseMediaBrowserClientActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         setContentView(binding.root)
-        val playListAdapter = PlayListAdapter { mediaItemClicked ->
-            //Toast.makeText(this,mediaItemClicked.description.title,Toast.LENGTH_LONG).show()
-            if (mediaItemClicked.isPlayable) {
-                mediaBrowserClientWrapper.togglePlayPause()
+        val playListAdapter = PlayListAdapter { mediaItemClicked, action ->
+            if (action == 0) {
+                if (mediaItemClicked.mediaItem.isPlayable) {
+                    mediaBrowserClientWrapper.togglePlayPause()
+                } else {
+                    //Browse content...
+                }
+            }else {
+                //Stop playback
+                mediaBrowserClientWrapper.stopPlayback()
             }
         }
 
@@ -32,12 +44,18 @@ class MainActivity : BaseMediaBrowserClientActivity() {
         mediaBrowserClientWrapper.livePlayListData.observe(this) { mediaItems ->
             playListAdapter.submitList(mediaItems)
         }
+
+        mediaBrowserClientWrapper.playbackState.observe(this) { playbackState ->
+            val mediaItem = playListAdapter.currentList[0]
+            mediaItem.playBackState = playbackState
+            playListAdapter.submitList(playListAdapter.currentList)
+        }
     }
 
     override fun onStart() {
         super.onStart()
         /*
-        connects to the MediaBrowserService.
+        Connect to the MediaBrowserService.
         Here's where the magic of MediaBrowserCompat.ConnectionCallback comes in.
         If the connection is successful, the onConnect() callback creates the media controller,
         links it to the media session, links your UI controls to the MediaController,
@@ -59,19 +77,7 @@ class MainActivity : BaseMediaBrowserClientActivity() {
     }
 
     override fun buildTransportControls() {
-        // Grab the view for the play/pause button
-        /*
-        findViewById<ImageView>(R.id.play_pause).apply {
-            setOnClickListener {
-                // Since this is a play/pause button, you'll need to test the current state
-                // and choose the action accordingly
-                mediaBrowserClientWrapper.togglePlayPause()
-            }
-        }
-         */
-
         // Register a Callback to stay in sync
         mediaBrowserClientWrapper.registerMediaControllerCallback()
     }
-
 }
